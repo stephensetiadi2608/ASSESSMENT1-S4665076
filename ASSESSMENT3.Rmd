@@ -1,0 +1,524 @@
+---
+title: "ASSESSMENT3"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: yeti 
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# **ASSESSMENT 3 - BUSINESS REPORT** 
+
+## STEPHEN RENALDO SETIADI - S4665076
+## RYOSUKE OTSUKA - S4663911
+
+## ------------------------------------------------------------------------------------------------------
+
+```{r}
+library(tidyverse)
+library(knitr)
+library(tidymodels)
+library(skimr)
+library(dplyr)
+library(kableExtra)
+```
+
+--------------------------------------------------------------------------------------------
+
+### EXECUTIVE SUMMARY
+
+This report aims to provide a piece of information and recommendation for analysis decisions using the information from the data set. Furthermore, this report seeks to address the business problem of what will be the best-selling ramen in the world based on the data provided and give analytical insight into the output, providing what kind of ramen should be sold by each company to increase sales in the future. 
+
+The method used for analysis was using data descriptive exploration analysis to examine any relation and dependencies between variables and to prove any positive relations within the variables in the data set. Ensuring the dataset generates the best quality information is vital to preparing the data adequately.
+
+
+Major question to predict the output
+
+1. Can we predict the star's rating on ramen based on the predictor? 
+2. Can we predict brand based on the predictor? 
+
+--------------------------------------------------------------------------------------------
+
+### INTRODUCTION
+
+Though being recognised as a portion of unhealthy food, ramen is one of the best selling Asian food,  which has a variety of flavours, depending on the country where they put the originalities into ramen. However, given the popularity of ramen in the world, many food industries endeavour to releace the new items to exacerbate the competition of ramen industries. 
+The following report looks at the data, which displays the rating stars of each ramen following brand, variety, country, and style information. 
+
+
+--------------------------------------------------------------------------------------------
+
+### BUSINESS PROBLEM
+
+The data set contains information about ramen reviews around the world. This report will provide information about ramen rating and visualise the data to make readers understand and gain focused details. Not only helpful in gaining knowledge, but the data can help make thoughtful decisions regarding the ramen market worldwide. 
+
+This report will explore the prediction of ramen rating and what would also provide information of what would be the best way or methodology to predict the ramen rating using different categorical predictors. 
+
+Central Question: Can we predict the stars rating on ramen based on the packaging and its brand?
+Sub-questions:
+
+Q1. Can we predict the stars' ramen rating by knowing their brand, country and packing style?
+
+Q2. Can we predict brands by knowing their, stars, country and style?
+
+
+
+--------------------------------------------------------------------------------------------
+
+### ABOUT THE DATA SET
+
+
+The dataset discovers how four different predictors influence the ramen review in the world. For example, the style and brand of ramen will affect the stars rating of the ramen
+
+
+**LOAD THE DATA SET**
+
+```{r}
+ramen_ratings_ori <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-04/ramen_ratings.csv")
+```
+
+--------------------------------------------------------------------------------------------
+
+### DATA CLEANSING
+
+It is vital of checking our data set before we do the analysis. The cleaning of the data set will increase overall productivity and help produce the best quality information to predict and recommend the best decision to get the best result of the prediction.
+
+
+**1. Remove any space " " between the variable names and replace it with "_".**
+
+```{r}
+ramen_ratings <- ramen_ratings_ori
+```
+
+```{r}
+names(ramen_ratings)<-str_replace(names(ramen_ratings)," ", "_")
+```
+
+**2. Detecting and deleting Null Values**
+
+```{r}
+is.na(ramen_ratings) <- ramen_ratings == ''
+```
+
+```{r}
+colSums(is.na(ramen_ratings))
+```
+```{r}
+which(is.na(ramen_ratings$style))
+```
+
+```{r}
+ramen_ratings<-ramen_ratings%>%
+  filter(!is.na(stars))%>%
+  select(-review_number)
+```
+
+Missing values in "Stars" column. Now we will delete this rows in the dataset and removing colum review number from the data set.
+
+**3. Change the “character” variables into a “factor” for better analysis**
+
+```{r}
+ramen_ratings <- ramen_ratings %>% 
+    mutate_if(is.character, factor)
+```
+```{r}
+skim(ramen_ratings)
+```
+
+
+--------------------------------------------------------------------------------------------
+
+### DESCRIPTIVE OR EXPLORATORY ANALYSIS 
+
+To allow us understand the data we will use descriptive analysis to predict the data.  
+
+**1. We can see there are 8 different types of ramen style, so the amount of ramen classified under 8 categories**
+
+
+```{r}
+ramen_ratings%>%
+count(style, sort = TRUE, name="Total style")%>%
+kable()%>%
+kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+
+**2. Total of Each Packaging Style, in the following graph describes total of each packaging style.**
+
+```{r}
+ramen_ratings%>%
+  count(style, sort = TRUE, name= "Total_style")%>%
+  mutate(style = fct_reorder(style,Total_style))%>%
+  ggplot( aes(x=style, y = Total_style))+
+  geom_col(position="stack",fill="light blue")+ 
+  coord_flip()+
+  labs(title = "Amount of each packaging style", x="Packaging Style",y="Total")
+```
+
+As can be seen from the graph, "Pack" packaging style is the most poppular style in the dataset with more than 1500
+
+
+**3. Top 10 Countries that have the highest number of ramen**
+
+```{r}
+ramen_country <- ramen_ratings %>%
+  group_by(country) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))%>%
+  top_n(n = 10, wt = count)
+```
+
+
+```{r}
+kable(ramen_country)%>%
+    kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+```{r}
+ramen_country%>%
+  count(country, count, sort = TRUE)%>%
+  mutate(country = fct_reorder(country,count))%>%
+  ggplot(aes(country, count, fill = country))+
+  geom_col()+
+  coord_flip()+
+  labs(title = "Top 10 Countries", x="Country",y="Total")
+```
+
+
+From the graph we found that japan has most highest number of ramen in all group rating.  
+
+**4. Top 10 brand that have the most amount of ramen**
+
+```{r}
+ramen_brands <- ramen_ratings %>%
+  group_by(brand) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))%>%
+  top_n(n = 10, wt = count)
+```
+
+
+```{r}
+kable(ramen_brands)%>%
+    kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+
+
+```{r}
+ramen_brands %>%
+  count(brand, count, sort = TRUE)%>%
+  mutate(brand = fct_reorder(brand,count))%>%
+  ggplot(aes(x = brand, y = count, fill=count)) + 
+  geom_col(fill="green")+
+  coord_flip()+
+  labs(title = "Top 10 Brands", x="Brand",y="Total")
+```
+The graph shows nissin is the most  higest variety of ramen.
+
+**5. Top 10 country with most style number **
+
+```{r}
+top10_ratings <- ramen_ratings %>%
+  group_by(country) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))%>%
+  top_n(n = 10, wt = count)%>%
+  ungroup()
+```
+
+```{r}
+kable(top10_ratings)%>%
+    kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+
+```{r}
+
+top10_ratings%>%
+count(country, count, sort = TRUE)%>%
+mutate(country = fct_reorder(country, count))%>%
+ggplot(aes(x = country, y = count, fill=count)) + geom_col(fill="orange")+
+coord_flip()+
+  labs(title = "Top 10 Countries", x="Country",y="Style")
+
+```
+The graph shows the top 10 country who produce ramen by packaging style.
+
+
+**summary of the categorical predictors** 
+
+```{r}
+library(broom)
+```
+
+```{r}
+ramen_ratings_ori%>%
+  filter(!is.na(style))%>%
+  gather(category, value, -variety , - stars, -review_number)%>%
+  count(category, value)%>%
+  group_by(category)%>%
+  top_n(20,n)%>%
+  ungroup()%>%
+  mutate(value = fct_reorder(value, n))%>%
+  ggplot(aes(value,n))+
+  geom_col()+
+  facet_wrap(~category, scales = "free_y")+
+  coord_flip()+
+  labs(title = "Categorical predictors", x ="Predictor", y ="Count")+
+  theme_set(theme_light())
+```
+The plot shows the three categorical predictors that influences ramen rating 
+
+--------------------------------------------------------------------------------------------
+
+# PREDICTIVE ANALYSIS 
+
+
+## Model 1: Predict ramen rating 'stars' using Linear Model
+From our descriptive analysis, we have found that the stars numbers can be predicted by knowing their brand and style. We will now build a model to make these predictions.
+
+Step 1: Split the dataset into Training & Testing datasets.
+
+```{r}
+ramen_split <- initial_split(ramen_ratings)
+```
+
+```{r}
+ramen_train <- training(ramen_split)
+```
+
+```{r}
+ramen_test <- testing(ramen_split)
+```
+
+## Step 2: Pre-process the data.
+
+### 2.1 Set the recipe & get the ingredients - recipe()
+For this modelling, we will use all the 3 variables from the dataset.
+
+Since we are predicting the ramen rating from the data set, stars is our Output variable and the others are our Input variables or Predictors.
+
+
+```{r}
+ramen_recipe1 <- recipe(stars ~ ., data = ramen_train)
+```
+
+```{r}
+summary(ramen_recipe1)
+```
+### 2.2 Write the recipe steps - step_xxx()
+Success of modelling depends on the “quality” of data. To ensure this quality, there are few transformations that are necessary in our dataset.
+
+Whenever we have numeric values in our dataset, to avoid the outliers we need to normalise it by “Centering” & “Scalling” - [step_center() & step_scale()]
+
+We also need to remove any numeric variables that are closely related (=correlated) - [step_corr()]
+
+
+```{r}
+ramen_recipe1 <- ramen_recipe1%>%
+  step_center(all_numeric(), -all_outcomes())%>%
+  step_scale(all_numeric(), -all_outcomes()) %>%
+  step_corr(all_numeric())
+```
+
+### 2.3 Get ready with the prep - prep()
+
+```{r}
+ramen_prep1 <- prep(ramen_recipe1, training = ramen_train)
+```
+
+### 2.4 Bake the recipe - bake()
+
+```{r}
+ramen_bake1 <- bake(ramen_prep1, ramen_train)
+```
+
+```{r}
+ramen_bake1
+```
+## Step 3: Build a model
+[For this modelling, our Output variable is Numeric. So, we will use Linear Modelling lm().]
+
+```{r}
+model1 <- lm(stars ~ ., data = ramen_bake1)
+```
+
+
+```{r}
+#summary(model1)
+```
+
+The best output value using the  using 4 variable input
+
+1. stars ~ brand + country + style + variety Adjusted R-squared:  0.7487
+
+2. stars ~ brand + country + style Adjusted R-squared:  0.3067
+
+3. stars ~ country Adjusted R-squared:  0.1031
+
+4. stars ~ brand Adjusted R-squared:  0.2882
+
+
+```{r}
+coof_ramen <- ramen_ratings%>%
+  filter(style !="Other",country !="Other", brand !="Other", !is.na(style))%>%
+  mutate(style = fct_lump(style, 10),
+         country = fct_lump(country, 10),
+         brand = fct_lump(brand, 10))%>%
+  mutate(brand = fct_relevel(brand, "Nissin"),
+         country = fct_relevel(country, "Japan"),
+         style = fct_relevel(style, "Pack"))
+  
+```
+ 
+
+```{r}
+lm(stars~ brand + country + style,coof_ramen)%>%
+  tidy(conf.int = TRUE)%>%
+  filter(term != "(Intercept)")%>%
+  arrange(desc(estimate))%>%
+  mutate(term = fct_reorder(term, estimate))%>%
+  ggplot(aes(estimate, term, color = term ))+
+  geom_point()+
+  geom_vline(lty = 2, xintercept = 0)+
+    labs(x = "Estimated effect on ramen rating", title = "Coefficients that predict ramen ratings")
+```
+
+## Step 4 : Evaluate The model
+
+# Model 2: Predict food_regime using randomForest
+
+From our descriptive analysis, we also found that we can predict the correct ramen stars using random forest function with using supervised learning algorithm it will build a multiple decision trees to give the majority input and validation of the analysis.
+
+## Step 1: Split the dataset into Training & Testing datasets.
+We will use the same training and testing datasets created earlier for Model 1. So, no need to recreate.
+
+## Step 2: Pre-process the data.
+
+### 2.1 Set the recipe & get the ingredients - recipe()
+For this modelling, we will use  3 variables (brand, country and style)  from the dataset.
+
+Since we are predicting the stars rating of ramen, stars is our Output variable and the others are our Input variables or Predictors.
+
+```{r}
+ramen_recipe2 <- recipe(brand ~ ., data = ramen_train) 
+
+```
+
+  
+```{r}
+summary(ramen_recipe2)
+```
+### 2.2 Write the recipe steps - step_xxx()
+Success of modelling depends on the “quality” of data. To ensure this quality, there are few transformations that are necessary in our dataset.
+
+Whenever we have numeric values in our dataset, to avoid the outliers we need to normalise it by “Centering” & “Scalling” - [step_center() & step_scale()]
+
+We also need to remove any numeric variables that are closely related (=correlated) - [step_corr()]
+
+```{r}
+ramen_recipe2 <- ramen_recipe2 %>%
+  step_center(all_numeric(), -all_outcomes()) %>% 
+  step_scale(all_numeric(), -all_outcomes()) %>% 
+  step_corr(all_numeric())
+```
+
+
+### 2.3 Get ready with the prep - prep()
+```{r}
+ramen_prep2 <- prep(ramen_recipe2, training = ramen_train)
+```
+
+### 2.4 Bake the recipe - bake()
+```{r}
+ramen_bake2 <- bake(ramen_prep2, ramen_train)
+```
+
+```{r}
+summary(ramen_bake2)
+
+```
+
+```{r}
+#install.packages("randomForest")
+library(randomForest)
+```
+
+```{r}
+ramen_bake2$brand <- droplevels(ramen_bake2$brand)
+```
+
+
+```{r}
+model2 <- randomForest(brand ~ country,
+                       data = ramen_bake2, importance=TRUE, proximity=TRUE)
+```
+
+```{r}
+print(model2)
+```
+
+
+
+MULTIPLE DECISION TREES EXPLAINED 
+
+1. Brand and Country estimate of  error rate: 74.39%
+model2 <- randomForest(brand ~ country,
+                       data = ramen_bake2, importance=TRUE, proximity=TRUE)
+
+2. Brand and style estimate of  error rate: 86.23%
+model2 <- randomForest(brand ~ style,
+                       data = ramen_bake2, importance=TRUE, proximity=TRUE)
+
+3. Brand and stars estimate of  error rate: 86.52%
+model2 <- randomForest(brand ~ stars,
+                       data = ramen_bake2, importance=TRUE, proximity=TRUE)
+
+## Step 3: Evaluate the model
+
+Firstly, We use a linear regression model and use the output "stars", which display the rating of each ramens. Unfortunately, due to the data set limitation, the output of the p-value was not showing any significant value, and the production of the residual was generating similar significance. As a result, we decided only to focus on the Adjusted R-squared value to determine the best output, which showed the difference in each test. 
+
+Second, we used the random forest function to conduct the data modelling. We use four different variable inputs. 
+According to the result, lm_1 showed the most accurate amount, whereas the rest is below 0.5, which is considered an inaccurate number. The difference between lm_2, lm_3 and lm_4 is the number of predictors. When we look at the lm_3 and lm_4, it can show that there is no significant difference between them. Therefore, we figured out that the quality of each value is irrelevant and almost the same, and we finalised that the quantity of the predictors is crucial for this dataset. 
+The limitation of the dataset information affects the method to achieve the best result. In this method, we "brand" as a valuable outcome based on the sub-question in terms of the classification. 
+The output values of estimate rate are not showing, and good results and the differences between each variable are similar, adding predictable predictors are still not generating low estimate error.
+Nevertheless, the chosen variable shown the lowest rate is the country variable as a predictor. Therefore, when it comes to classification, the country variable is considered the most practical value in predicting the brand of each ramen.      
+All in all, classification is unlikely to be used to predict the best ramen brand in the future.
+
+
+--------------------------------------------------------------------------------------------
+
+# FINDINGS & CONCLUSION
+
+Our results suggest that frequent Japan has the most ramen variety and packaging style, the most distributed ramen in number around the world came from the Nissin brand. The ten big brands that dominate the world market are, Indomie, Mama, Maruchan, Myojo, Nissin, Nongshim, Ottogi, Paldo, Samyang Foods, and Sapporo Ichiban.    
+
+We acknowledge that the analysis is still very rough to produce high-quality information. Moreover, it is only taken into account to implement the knowledge we learned in the tutorial and research for the last eight weeks of our study. Therefore, to improve the result of our analysis, further study and research is essential.
+
+From the viewpoint of the data modelling, both regression and classification showed ambiguous results due to the lack of valuables and insufficient information. However, the regression model explained that the best way to predict the stars' variable is to take all valuable except the review number. Moreover, the classification showed that the country is the most reliable useful to predicting the brand
+ 
+
+
+--------------------------------------------------------------------------------------------
+
+# RECOMMENDATIONS
+
+Even though the data has multiple categorical variables, results showed a high error rate in both models. Indeed, due to the lack of numerical variables, the data somehow leads to insufficient analytics and biased results that affect the further analysis. Therefore, we recommend having more categorical variables to generate better quality information from the dataset. 
+
+We recommend that the data has additional information such as: 
+
+•	Add sales report/market price report / Nutrition information as a numerical variable 
+
+•	Add customer feedback such as unique characteristics, ex. spicy, stinking 
+
+The first recommendation suggests that if the data have more numerical variables, it is easy to conduct the modelling by using them to find the relationship.
+Adding more numerical variables data can perform the descriptive analysis using both linear and classification models to generate accurate information. Mainly nutrition information includes varieties of numbers and market price reports. Numerical variables can be the crucial rule for the data because the categorical variables are too general to apply the modelling.
+
+The second recommendation shows that by adding more information regarding the customer feedback, the data will display the distribution of the word used to describe each ramen. Though it is a still categorical variable, hopefully, we can see the relation between the ramen rating. Therefore the data modelling process became more accurate. In conclusion, according to the data exploration, the lack of data caused the limitation of the analysis, so it is necessary to revise the data again. To do so, we would like to recommend adding more variables.
+
+
+
+
+
+
+
